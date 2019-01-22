@@ -1,0 +1,152 @@
+{
+    "Resources": {
+        "LambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": "root",
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": "arn:aws:logs:*:*:*"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "ec2:*"
+                                    ],
+                                    "Resource": "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "VolumeTagfn": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "import json",
+                                "print('Loading function')",
+                                "import boto3",
+                                "import string",
+                                "import random",
+                                "import cfnresponse",
+                                "client = boto3.resource('ec2')",
+                                "def handler(event, context):",
+                                "    try:",
+                                "        eventType = event['RequestType']",
+                                "        print(event)",
+                                "        volumeid = event['ResourceProperties']['VolumeId']",
+                                "        VolKey1 = event['ResourceProperties']['VolKey1']",
+                                "        Volvalue1 = event['ResourceProperties']['Volvalue1']",
+                                "        volume = client.Volume(volumeid)",
+                                "        if eventType == 'Delete':",
+                                "            ec2 = boto3.client('ec2', region_name='us-east-1')",
+                                "            response = ec2.delete_tags( Resources=[volumeid],Tags=[ { 'Key': VolKey1} ])",
+                                "            responseValue = {}",
+                                "            responseData = {}",
+                                "            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData )",
+                                "            return responseData[0]",
+                                "        elif eventType == 'Create':     ",
+                                "            response = volume.create_tags( Tags=[ { 'Key': VolKey1, 'Value': Volvalue1 } ])",
+                                "            responseValue = volume.tags",
+                                "            responseData = {}",
+                                "            responseData[0] = responseValue ",
+                                "            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData )",
+                                "            return responseData[0]",
+                                "        elif eventType == 'Update':",
+                                "            response = volume.create_tags( Tags=[ { 'Key': VolKey1, 'Value': Volvalue1 } ])",
+                                "            responseValue = volume.tags",
+                                "            responseData = {}",
+                                "            responseData[0] = responseValue ",
+                                "            cfnresponse.send(event, context, cfnresponse.SUCCESS, responseData )",
+                                "            return responseData[0]",
+                                "    except Exception as e:",
+                                "        print(e)",
+                                "        print('Error')",
+                                "        raise"
+                            ]
+                        ]
+                    }
+                },
+                "Handler": "index.handler",
+                "Runtime": "python2.7",
+                "Timeout": "300",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaExecutionRole",
+                        "Arn"
+                    ]
+                }
+            }
+        },
+        "NewVolume": {
+            "Type": "AWS::EC2::Volume",
+            "Properties": {
+                "Size": "10",
+                "VolumeType": "io1",
+                "Iops": "100",
+                "AvailabilityZone": "us-east-1b"
+            }
+        },
+        "VolumeTag2": {
+            "Type": "Custom::VolumeTag",
+            "Version": "1.0",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "VolumeTagfn",
+                        "Arn"
+                    ]
+                },
+                "VolumeId": {
+                    "Ref": "NewVolume"
+                },
+                "VolKey1": "frmlambdafn2",
+                "Volvalue1": "yoyoman2"
+            }
+        }
+    },
+    "Outputs": {
+        "ARN": {
+            "Description": "ARN of Lambda Function",
+            "Value": {
+                "Fn::GetAtt": [
+                    "VolumeTagfn",
+                    "Arn"
+                ]
+            }
+        }
+    }
+}
